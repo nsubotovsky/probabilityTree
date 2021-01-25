@@ -15,13 +15,27 @@ class BaseCutterCalculator(ABC):
         'Trivial cuts are cuts which leave all items in only 1 branch'
         return any( len(s) ==0 for s in (series_a, series_b) )
 
+    def _calculateCutPoints(self):
+        uniques = self._series.unique()
+        if self._series.dtype.name == 'category':
+            return uniques
+
+        if self._series.dtype.name in {'int64', 'float64'}:
+            uniques.sort()
+            mid_points = (uniques[1:] + uniques[:-1]) / 2
+            return mid_points
+
+        raise ValueError('Unexpected value type: {}; dont know how to partition'.format(self._series.dtype.name))
+
 
     def calculateCutsGains(self) -> dict:
         results = {}
 
         parent_score = self._getSeriesScore(self._target)
 
-        for cutLimit in self._series.unique():
+        #for cutLimit in self._series.unique():
+        for cutLimit in self._calculateCutPoints():
+
             indexes = self._series < cutLimit
 
             left_series = self._target[indexes]
@@ -80,7 +94,7 @@ class EntropyCutterCalculator(BaseCutterCalculator):
 
 def main():
 
-    s = pd.Series([1,2,1,33,4,5,7,8,1,2,4,5,3,6,9,7,5,1])
+    s = pd.Series([1,2,1,33,4,5,7,8,1,2,4,5,3,6,9,7,5,1.5])
     t = s > 5
 
 
