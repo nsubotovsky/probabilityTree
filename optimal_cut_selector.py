@@ -4,15 +4,29 @@ import pandas as pd
 
 
 
+class Cut:
+
+    def __init__(self, columnName:str, cutThreshold:float, gain:float):
+        self.columnName = columnName
+        self.cutThreshold = cutThreshold
+        self.gain = gain
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return "Cut(columnName='{}', cutThreshold={}, gain={})".format(self.columnName, repr(self.cutThreshold), self.gain)
+
+    def lessThanIndexes(self, dataFrame:pd.DataFrame) -> pd.Series:
+        return dataFrame[self.columnName] < self.cutThreshold
 
 
-from pprint import pprint
+
+
 
 class CutSelector:
 
-    CUT_DATA = namedtuple('CUT_DATA', 'columnName cutTheshold gain')
-
-    def __init__(self, cutCalculator:BaseCutterCalculator):
+    def __init__(self, cutCalculator):
         self._cutScoreCalculator = cutCalculator
 
 
@@ -21,12 +35,12 @@ class CutSelector:
         for columnName in dataFrame.columns:
             cutGainsForColumn = self._cutScoreCalculator( dataFrame[columnName], classSeries ).calculateCutsGains()
 
-            columnCutGains = [self.CUT_DATA(columnName, cut, gain) for cut, gain in cutGainsForColumn.items()]
+            columnCutGains = [Cut(columnName, cut, gain) for cut, gain in cutGainsForColumn.items()]
             cuts.extend(columnCutGains)
 
         return cuts
 
-    def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series):
+    def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
         allCuts = self._calculateAllCuts(dataFrame, classSeries)
         return max(allCuts, key=lambda x:x.gain)
 
