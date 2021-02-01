@@ -2,8 +2,13 @@ import pandas as pd
 from cut_calculators import GiniCutterCalculator
 from optimal_cut_selector import CutSelector
 from functools import lru_cache
+from collections import namedtuple, deque, defaultdict
+from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
+from pprint import pprint
 
 
+Prediction = namedtuple('Prediction', 'value trueProb')
 
 class _TreeNode:
 
@@ -25,16 +30,23 @@ class _TreeNode:
     def __repr__(self):
         return 'TreeNode( NodeCount: {}, True={}, False={} )'.format(self.sampleCount, self.trueVals, self.falseVals)
 
+    def nodeLevelPrediction(self):
+        return Prediction( value=self.trueVals > self.falseVals, trueProb=self.trueVals / self.sampleCount )
+
+
+
+
+
 
 
 
 class Tree:
 
-    def __init__(self):
+    def __init__(self, max_depth=3):
         self.cutSelector = CutSelector(GiniCutterCalculator)
 
         # stop conditions config
-        self.max_depth = 3
+        self.max_depth = max_depth
         self.min_samples_split = 2
         self.min_samples_leaf = 1
 
@@ -62,6 +74,25 @@ class Tree:
 
         self.rootNode = _TreeNode(level=0, nodeIndexes=self._getFullIndex(Y), trueVals=Y.sum() )
         self._recursive(self.rootNode)
+
+
+    def predict(self, X:pd.DataFrame, Y:pd.Series=None):
+        return [self.predictSingle( row ) for _i, row in X.iterrows()]
+
+
+    def predictSingle(self, row:pd.Series):
+
+        currNode = self.rootNode
+
+        while currNode.cut is not None:
+            cut = currNode.cut
+            if row[cut.columnName] < cut.cutThreshold:
+                currNode = currNode.lessThanNode
+
+            else:
+                currNode = currNode.greaterThanOrEqualNode
+
+        return currNode.nodeLevelPrediction()
 
 
     def _completeIndex(self, currentIndexes):
@@ -110,7 +141,21 @@ class Tree:
 
         return cut, lessThanIndexes, greaterThanOrEqualIndexes
 
+    def calculateAllCuts(self):
 
+        allCutsPerColumn = defaultdict(set)
+
+        nodesToInspect = deque()
+        nodesToInspect.append( self.rootNode )
+
+        while nodesToInspect:
+            currNode = nodesToInspect.popleft()
+            if currNode.cut:
+                allCutsPerColumn[currNode.cut.columnName].add(currNode.cut.cutThreshold)
+                nodesToInspect.append( currNode.lessThanNode )
+                nodesToInspect.append(currNode.greaterThanOrEqualNode)
+
+        return { k:sorted(v) for k,v in allCutsPerColumn.items() }
 
 
 
@@ -118,15 +163,130 @@ class Tree:
 
 
 def main():
+
+    # from matplotlib import pyplot as plt
+    # from matplotlib.patches import Rectangle
+    #
+    # # Your data
+    # a = ([-0.2, 0.1, 0.7],
+    #      [0.1, 0.2, 0.3])
+    #
+    # cols=[1,2,3]
+    #
+    # # Your scatter plot
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    #
+    #
+    # # Add rectangles
+    # ax.add_patch(Rectangle(
+    #     xy=(-0.5, -0.5), width=1, height=1,
+    #     linewidth=1, color='blue', fill=True, alpha=0.3, zorder=-10))
+    # ax.axis('equal')
+    #
+    # from matplotlib import cm
+    # ax.scatter(a[0], a[1], c=cols, cmap = cm.coolwarm)
+    #
+    #
+    # plt.show()
+    #
+    #
+    # return
+
     from synthetic_samples import CircleUniformVarianceDataGenerator
 
     print('Hey!')
-    df = CircleUniformVarianceDataGenerator().generate(100)
+    df = CircleUniformVarianceDataGenerator( noise=0.1 ).generate(3000)
     print(df.head())
 
-    tree = Tree()
+    tree = Tree( max_depth=8 )
 
     tree.fit( df.drop('class', axis=1), df['class'] )
+
+    predictDf = CircleUniformVarianceDataGenerator().generate(3)
+
+    preds = tree.predict( predictDf.drop('class', axis=1) )
+
+
+    def _SquaresAndTestPoints( tree, xColName='x', yColName='y', xLimits=(-1.1,1.1), yLimits=(-1.1,1.1) ):
+
+        allCuts = tree.calculateAllCuts()
+
+        xCuts =  [ xLimits[0] ] + allCuts.get(xColName, []) + [ xLimits[1] ]
+        yCuts =  [ yLimits[0] ] + allCuts.get(yColName, []) + [ yLimits[1] ]
+
+
+        allSquaresData = []
+
+        for ix, xCut in enumerate(xCuts[:-1]):
+            for iy, yCut in enumerate(yCuts[:-1]):
+
+                nextXcut = xCuts[ix + 1]
+                nextYcut = yCuts[iy + 1]
+
+                sd = dict(
+                    lowerLeft = (xCut, yCut),
+                    height =  nextYcut - yCut,
+                    width = nextXcut - xCut,
+                    midPoint = ( (xCut + nextXcut)/2,  (yCut + nextYcut)/2 ),
+                    )
+
+                allSquaresData.append(sd)
+
+        testPoints = pd.DataFrame([ { xColName:sd['midPoint'][0] , yColName:sd['midPoint'][1] } for sd in allSquaresData ])
+
+        trueProbs = [ prediction.trueProb for prediction in tree.predict( testPoints ) ]
+
+        for sd, trueProb in zip(allSquaresData, trueProbs):
+            sd['trueProb'] = trueProb
+
+
+        pprint(allSquaresData)
+        return allSquaresData
+
+
+    squaresToPlot = _SquaresAndTestPoints(tree)
+
+
+
+
+    # Your data
+    # lowerlefts = [ sd['lowerleft'] for sd in squaresToPlot ]
+    # cols=[ sd['trueProb'] for sd in squaresToPlot ]
+
+
+    # Your scatter plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+
+    # Add rectangles
+
+    from matplotlib import cm
+    for sd in squaresToPlot:
+
+        ax.add_patch(Rectangle(
+            xy=sd['lowerLeft'],
+            width=sd['width'],
+            height=sd['height'],
+            linewidth=1,
+            color=cm.coolwarm(sd['trueProb']),
+            fill=True,
+            alpha=1.0,
+            zorder=-10,
+            ))
+    ax.axis('equal')
+
+    #
+    # from matplotlib import cm
+    # ax.scatter(a[0], a[1], c=cols, cmap = cm.coolwarm)
+    #
+    #
+    plt.show()
+    #
+    #
+    # return
+
 
     print('done!')
 
