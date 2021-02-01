@@ -196,7 +196,7 @@ def main():
     from synthetic_samples import CircleUniformVarianceDataGenerator
 
     print('Hey!')
-    df = CircleUniformVarianceDataGenerator( noise=0.1 ).generate(3000)
+    df = CircleUniformVarianceDataGenerator( noise=0.05 ).generate(2000)
     print(df.head())
 
     tree = Tree( max_depth=8 )
@@ -208,7 +208,7 @@ def main():
     preds = tree.predict( predictDf.drop('class', axis=1) )
 
 
-    def _SquaresAndTestPoints( tree, xColName='x', yColName='y', xLimits=(-1.1,1.1), yLimits=(-1.1,1.1) ):
+    def _SquaresAndTestPoints( tree, xColName='x', yColName='y', xLimits=(-0.55,0.55), yLimits=(-0.55,0.55) ):
 
         allCuts = tree.calculateAllCuts()
 
@@ -255,6 +255,29 @@ def main():
     # cols=[ sd['trueProb'] for sd in squaresToPlot ]
 
 
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+
+    # Add rectangles
+
+    from matplotlib import cm
+    for sd in squaresToPlot:
+
+        ax.add_patch(Rectangle(
+            xy=sd['lowerLeft'],
+            width=sd['width'],
+            height=sd['height'],
+            linewidth=1,
+            color=cm.coolwarm(sd['trueProb']),
+            fill=True,
+            alpha=1.0,
+            zorder=-10,
+            ))
+    ax.axis('equal')
+    plt.show()
+
+
     # Your scatter plot
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -279,9 +302,22 @@ def main():
 
     #
     # from matplotlib import cm
-    # ax.scatter(a[0], a[1], c=cols, cmap = cm.coolwarm)
+    ax.scatter(
+        df['x'],
+        df['y'],
+        c=df['class'].apply( lambda x : 'red' if x else 'blue' ),
+        alpha=0.3 )
     #
     #
+    plt.show()
+
+
+
+    plt.scatter(
+        df['x'],
+        df['y'],
+        c=df['class'].apply( lambda x : 'red' if x else 'blue' ),
+        alpha=0.3 )
     plt.show()
     #
     #
