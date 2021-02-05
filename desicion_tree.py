@@ -1,6 +1,6 @@
 import pandas as pd
 from cut_calculators import GiniCutterCalculator
-from optimal_cut_selector import CutSelector
+from optimal_cut_selector import CutSelector, BestCutSelector, TopN
 from functools import lru_cache
 from collections import namedtuple, deque, defaultdict
 from matplotlib import pyplot as plt
@@ -42,8 +42,8 @@ class _TreeNode:
 
 class Tree:
 
-    def __init__(self, max_depth=3):
-        self.cutSelector = CutSelector(GiniCutterCalculator)
+    def __init__(self, max_depth=3, cut_selector=None):
+        self.cutSelector = cut_selector or BestCutSelector(GiniCutterCalculator)
 
         # stop conditions config
         self.max_depth = max_depth
@@ -199,7 +199,8 @@ def main():
     df = CircleUniformVarianceDataGenerator( noise=0.05 ).generate(2000)
     print(df.head())
 
-    tree = Tree( max_depth=8 )
+    #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
+    tree = Tree( max_depth=8, cut_selector=TopN(GiniCutterCalculator, 3) )
 
     tree.fit( df.drop('class', axis=1), df['class'] )
 

@@ -1,7 +1,8 @@
 from cut_calculators import BaseCutterCalculator, GiniCutterCalculator
 from collections import namedtuple
 import pandas as pd
-
+from abc import ABC, abstractmethod
+import random
 
 
 class Cut:
@@ -24,7 +25,7 @@ class Cut:
 
 
 
-class CutSelector:
+class CutSelector(ABC):
 
     def __init__(self, cutCalculator):
         self._cutScoreCalculator = cutCalculator
@@ -40,10 +41,28 @@ class CutSelector:
 
         return cuts
 
+    @abstractmethod
+    def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
+        pass
+
+
+class BestCutSelector(CutSelector):
+
     def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
         allCuts = self._calculateAllCuts(dataFrame, classSeries)
         return max(allCuts, key=lambda x:x.gain)
 
+
+class TopN(CutSelector):
+
+    def __init__(self, cutCalculator, topCutsCount):
+        super().__init__( cutCalculator )
+        self.topCutsCount = topCutsCount
+
+    def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
+        allCuts = self._calculateAllCuts(dataFrame, classSeries)
+        sortedCuts = sorted(allCuts, key=lambda x:x.gain, reverse=True)
+        return random.choice( sortedCuts )
 
 
 def main():
@@ -56,7 +75,7 @@ def main():
     print(df.head())
 
 
-    cs = CutSelector( GiniCutterCalculator )
+    cs = CutSelector(GiniCutterCalculator)
     cut = cs.findCut( dataFrame=df.drop('class', axis='columns'), classSeries=df['class'] )
     print(cut)
 
