@@ -1,12 +1,11 @@
 import pandas as pd
 from cut_calculators import GiniCutterCalculator
-from optimal_cut_selector import CutSelector, BestCutSelector, TopN
+from metrics import Metrics
+from optimal_cut_selector import BestCutSelector, TopN
 from functools import lru_cache
 from collections import namedtuple, deque, defaultdict
-from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
-from pprint import pprint
-
+from utils import Timer
+from viz import HeatmapVisualizer
 
 Prediction = namedtuple('Prediction', 'value trueProb')
 
@@ -32,12 +31,6 @@ class _TreeNode:
 
     def nodeLevelPrediction(self):
         return Prediction( value=self.trueVals > self.falseVals, trueProb=self.trueVals / self.sampleCount )
-
-
-
-
-
-
 
 
 class Tree:
@@ -77,7 +70,13 @@ class Tree:
 
 
     def predict(self, X:pd.DataFrame, Y:pd.Series=None):
-        return [self.predictSingle( row ) for _i, row in X.iterrows()]
+        predictions = [self.predictSingle( row ) for _i, row in X.iterrows()]
+
+        if Y is None:
+            return predictions
+
+        else:
+            return predictions, Metrics( [ i.value for i in predictions ], list(Y) )
 
 
     def predictSingle(self, row:pd.Series):
@@ -158,171 +157,32 @@ class Tree:
         return { k:sorted(v) for k,v in allCutsPerColumn.items() }
 
 
-
-
-
-
 def main():
 
-    # from matplotlib import pyplot as plt
-    # from matplotlib.patches import Rectangle
-    #
-    # # Your data
-    # a = ([-0.2, 0.1, 0.7],
-    #      [0.1, 0.2, 0.3])
-    #
-    # cols=[1,2,3]
-    #
-    # # Your scatter plot
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111)
-    #
-    #
-    # # Add rectangles
-    # ax.add_patch(Rectangle(
-    #     xy=(-0.5, -0.5), width=1, height=1,
-    #     linewidth=1, color='blue', fill=True, alpha=0.3, zorder=-10))
-    # ax.axis('equal')
-    #
-    # from matplotlib import cm
-    # ax.scatter(a[0], a[1], c=cols, cmap = cm.coolwarm)
-    #
-    #
-    # plt.show()
-    #
-    #
-    # return
-
     from synthetic_samples import CircleUniformVarianceDataGenerator
+    sampleDataGenerator = CircleUniformVarianceDataGenerator( noise=0.05 )
 
-    print('Hey!')
-    df = CircleUniformVarianceDataGenerator( noise=0.05 ).generate(2000)
-    print(df.head())
+    with Timer('Generating random data'):
+        df = sampleDataGenerator.generate(2000)
+        print(df.head())
 
     #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
-    tree = Tree( max_depth=8, cut_selector=TopN(GiniCutterCalculator, 3) )
 
-    tree.fit( df.drop('class', axis=1), df['class'] )
+    with Timer('Fitting tree'):
+        tree = Tree( max_depth=10, cut_selector=TopN(GiniCutterCalculator, 5) )
+        #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
+        tree.fit( df.drop('class', axis=1), df['class'] )
 
-    predictDf = CircleUniformVarianceDataGenerator().generate(3)
-
-    preds = tree.predict( predictDf.drop('class', axis=1) )
-
-
-    def _SquaresAndTestPoints( tree, xColName='x', yColName='y', xLimits=(-0.55,0.55), yLimits=(-0.55,0.55) ):
-
-        allCuts = tree.calculateAllCuts()
-
-        xCuts =  [ xLimits[0] ] + allCuts.get(xColName, []) + [ xLimits[1] ]
-        yCuts =  [ yLimits[0] ] + allCuts.get(yColName, []) + [ yLimits[1] ]
+    with Timer('Predicting'):
+        predictDf = sampleDataGenerator.generate(3000)
+        preds, metrics = tree.predict( predictDf.drop('class', axis=1), predictDf['class'] )
+        print( metrics )
 
 
-        allSquaresData = []
-
-        for ix, xCut in enumerate(xCuts[:-1]):
-            for iy, yCut in enumerate(yCuts[:-1]):
-
-                nextXcut = xCuts[ix + 1]
-                nextYcut = yCuts[iy + 1]
-
-                sd = dict(
-                    lowerLeft = (xCut, yCut),
-                    height =  nextYcut - yCut,
-                    width = nextXcut - xCut,
-                    midPoint = ( (xCut + nextXcut)/2,  (yCut + nextYcut)/2 ),
-                    )
-
-                allSquaresData.append(sd)
-
-        testPoints = pd.DataFrame([ { xColName:sd['midPoint'][0] , yColName:sd['midPoint'][1] } for sd in allSquaresData ])
-
-        trueProbs = [ prediction.trueProb for prediction in tree.predict( testPoints ) ]
-
-        for sd, trueProb in zip(allSquaresData, trueProbs):
-            sd['trueProb'] = trueProb
-
-
-        pprint(allSquaresData)
-        return allSquaresData
-
-
-    squaresToPlot = _SquaresAndTestPoints(tree)
-
-
-
-
-    # Your data
-    # lowerlefts = [ sd['lowerleft'] for sd in squaresToPlot ]
-    # cols=[ sd['trueProb'] for sd in squaresToPlot ]
-
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-
-    # Add rectangles
-
-    from matplotlib import cm
-    for sd in squaresToPlot:
-
-        ax.add_patch(Rectangle(
-            xy=sd['lowerLeft'],
-            width=sd['width'],
-            height=sd['height'],
-            linewidth=1,
-            color=cm.coolwarm(sd['trueProb']),
-            fill=True,
-            alpha=1.0,
-            zorder=-10,
-            ))
-    ax.axis('equal')
-    plt.show()
-
-
-    # Your scatter plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-
-    # Add rectangles
-
-    from matplotlib import cm
-    for sd in squaresToPlot:
-
-        ax.add_patch(Rectangle(
-            xy=sd['lowerLeft'],
-            width=sd['width'],
-            height=sd['height'],
-            linewidth=1,
-            color=cm.coolwarm(sd['trueProb']),
-            fill=True,
-            alpha=1.0,
-            zorder=-10,
-            ))
-    ax.axis('equal')
-
-    #
-    # from matplotlib import cm
-    ax.scatter(
-        df['x'],
-        df['y'],
-        c=df['class'].apply( lambda x : 'red' if x else 'blue' ),
-        alpha=0.3 )
-    #
-    #
-    plt.show()
-
-
-
-    plt.scatter(
-        df['x'],
-        df['y'],
-        c=df['class'].apply( lambda x : 'red' if x else 'blue' ),
-        alpha=0.3 )
-    plt.show()
-    #
-    #
-    # return
+    HeatmapVisualizer.plot(
+        tree=tree,
+        #df=df
+    )
 
 
     print('done!')
