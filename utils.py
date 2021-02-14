@@ -1,5 +1,8 @@
 import datetime
 import time
+import random
+import functools
+import numpy as np
 
 class Timer:
 
@@ -22,11 +25,55 @@ class Timer:
 
 
 
+class randomWeightedPicker:
+    def __init__(self, optionsAndWeights):
+        self.optionsAndWeights = optionsAndWeights
+
+        self._cumOptionsAndWeightsCache = None
+
+    def _calculateOptionsAndCummulativeWeights(self, optionsAndWeights):
+
+        if self._cumOptionsAndWeightsCache is None:
+            self._cumOptionsAndWeightsCache = tuple((
+                    [option for option, weight in optionsAndWeights],
+                    np.cumsum( [weight for option, weight in optionsAndWeights] ),
+                ))
+
+        return self._cumOptionsAndWeightsCache
+
+    def rand(self):
+        options, cumulativeWeights = self._calculateOptionsAndCummulativeWeights(self.optionsAndWeights)
+        randValue = random.uniform(0, cumulativeWeights[-1])
+        return next(option for option, cumulativeWeight in zip(options,cumulativeWeights) if randValue < cumulativeWeight)
+
+
 
 def main():
     with Timer('stuff'):
         time.sleep(3)
         print('hey!')
+
+
+def main():
+
+    weights = [['a',1.5],
+               ['b',0.5],
+               ['c',1.0]]
+
+    from collections import defaultdict
+    from pprint import pprint
+
+    dd = defaultdict(lambda : 0)
+
+    rwp = randomWeightedPicker(weights)
+
+    for i in range(100000):
+        dd[rwp.rand()] += 1
+
+    pprint(dd['a']/dd['b'])
+    pprint(dd['a'] / dd['c'])
+
+
 
 
 

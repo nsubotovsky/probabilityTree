@@ -3,6 +3,7 @@ from collections import namedtuple
 import pandas as pd
 from abc import ABC, abstractmethod
 import random
+from utils import randomWeightedPicker
 
 
 class Cut:
@@ -65,6 +66,16 @@ class TopN(CutSelector):
         return random.choice( sortedCuts )
 
 
+class RandomProportional(CutSelector):
+
+    def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
+        allCuts = self._calculateAllCuts(dataFrame, classSeries)
+        randomWeightPicker = randomWeightedPicker([ (cut, cut.gain) for cut in allCuts])
+        randomProportionalCut = randomWeightPicker.rand()
+        return randomProportionalCut
+
+
+
 def main():
     from synthetic_samples import CircleUniformVarianceDataGenerator
     df = CircleUniformVarianceDataGenerator().generate(100)
@@ -75,9 +86,15 @@ def main():
     print(df.head())
 
 
-    cs = CutSelector(GiniCutterCalculator)
+    cs = RandomProportional(GiniCutterCalculator)
     cut = cs.findCut( dataFrame=df.drop('class', axis='columns'), classSeries=df['class'] )
     print(cut)
+
+    print(cs.findCut( dataFrame=df.drop('class', axis='columns'), classSeries=df['class'] ))
+    print(cs.findCut(dataFrame=df.drop('class', axis='columns'), classSeries=df['class']))
+    print(cs.findCut(dataFrame=df.drop('class', axis='columns'), classSeries=df['class']))
+    print(cs.findCut(dataFrame=df.drop('class', axis='columns'), classSeries=df['class']))
+    print(cs.findCut(dataFrame=df.drop('class', axis='columns'), classSeries=df['class']))
 
     pass
 
