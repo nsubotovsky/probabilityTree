@@ -1,7 +1,7 @@
 import pandas as pd
 from cut_calculators import GiniCutterCalculator
 from metrics import Metrics
-from optimal_cut_selector import BestCutSelector, TopN
+from optimal_cut_selector import BestCutSelector, TopN, RandomProportional
 from functools import lru_cache
 from collections import namedtuple, deque, defaultdict
 from utils import Timer
@@ -48,12 +48,6 @@ class Tree:
         self._X = None
         self._Y = None
         self._fullIndexTemplate = None
-
-    def _calculateBranchCut(self, X:pd.DataFrame, Y:pd.DataFrame):
-        cut = self.cutSelector.findCut(X, Y)
-        lessThanIndexes = cut.lessThanIndexes(X)
-        greaterThanOrEqualIndexes = ~lessThanIndexes
-        return _TreeNode(cut, lessThanIndexes, greaterThanOrEqualIndexes)
 
     def _getFullIndex(self, Y):
         'Gets an index of all TRUES, for initializing purposes'
@@ -127,6 +121,10 @@ class Tree:
         if currentNode.sampleCount < self.min_samples_split:
             return
 
+        # check if we have variability in the current node
+        if currentNode.falseVals == 0 or currentNode.trueVals == 0:
+            return
+
         currX = self._X[currentNode.nodeIndexes]
         currY = self._Y[currentNode.nodeIndexes]
 
@@ -164,13 +162,14 @@ def main():
 
     with Timer('Generating random data'):
         df = sampleDataGenerator.generate(2000)
-        print(df.head())
+        #print(df.head())
 
     #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
 
     with Timer('Fitting tree'):
-        tree = Tree( max_depth=10, cut_selector=TopN(GiniCutterCalculator, 5) )
+        #tree = Tree( max_depth=10, cut_selector=TopN(GiniCutterCalculator, 5) )
         #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
+        tree = Tree(max_depth=10, cut_selector=RandomProportional(GiniCutterCalculator))
         tree.fit( df.drop('class', axis=1), df['class'] )
 
     with Timer('Predicting'):
@@ -178,11 +177,11 @@ def main():
         preds, metrics = tree.predict( predictDf.drop('class', axis=1), predictDf['class'] )
         print( metrics )
 
-
-    HeatmapVisualizer.plot(
-        tree=tree,
-        #df=df
-    )
+    # with Timer('Visualizing'):
+    #     HeatmapVisualizer.plot(
+    #         tree=tree,
+    #         #df=df
+    #     )
 
 
     print('done!')

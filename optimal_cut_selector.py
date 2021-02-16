@@ -44,7 +44,7 @@ class CutSelector(ABC):
 
     @abstractmethod
     def findCut(self, dataFrame:pd.DataFrame, classSeries:pd.Series) -> Cut:
-        pass
+        raise NotImplementedError()
 
 
 class BestCutSelector(CutSelector):
