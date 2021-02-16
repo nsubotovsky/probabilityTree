@@ -44,10 +44,19 @@ class BaseCutterCalculator(ABC):
             if self._isTrivialCut(left_series, right_series):
                 continue
 
-            left_score = self._getSeriesScore(left_series)
-            right_score = self._getSeriesScore(right_series)
+            # left_score = self._getSeriesScore(left_series)
+            # right_score = self._getSeriesScore(right_series)
+            #
+            # cut_score = ( left_score * left_series.count() + right_score * right_series.count() ) / self._seriesCount
 
-            cut_score = ( left_score * left_series.count() + right_score * right_series.count() ) / self._seriesCount
+
+            left_score = self._getSeriesScoreMultipliedByCount(left_series)
+            right_score = self._getSeriesScoreMultipliedByCount(right_series)
+
+            cut_score = ( left_score + right_score  ) / self._seriesCount
+
+
+
 
             results[cutLimit] = parent_score - cut_score
 
@@ -56,6 +65,10 @@ class BaseCutterCalculator(ABC):
 
     @abstractmethod
     def _getSeriesScore(self, series:pd.Series) -> float:
+        pass
+
+    @abstractmethod
+    def _getSeriesScoreMultipliedByCount(self, series:pd.Series) -> float:
         pass
 
     def _getTrueAndFalseRatios(self, series:pd.Series) -> (float, float):
@@ -73,9 +86,16 @@ class BaseCutterCalculator(ABC):
 
 class GiniCutterCalculator(BaseCutterCalculator):
 
-    def _getSeriesScore(self, tragetSeries:pd.Series) -> float:
-        trueRatio, falseRatio = self._getTrueAndFalseRatios(tragetSeries)
+    def _getSeriesScore(self, targetSeries:pd.Series) -> float:
+        trueRatio, falseRatio = self._getTrueAndFalseRatios(targetSeries)
         return 1 - trueRatio ** 2 - falseRatio ** 2
+
+    def _getSeriesScoreMultipliedByCount(self, targetSeries:pd.Series) -> float:
+        totalCount = targetSeries.count()
+        trueCount = targetSeries.sum()
+        falseCount = totalCount - trueCount
+        return totalCount - (trueCount*trueCount+falseCount*falseCount)/totalCount
+
 
 
 class EntropyCutterCalculator(BaseCutterCalculator):
