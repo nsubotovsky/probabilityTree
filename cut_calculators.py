@@ -119,7 +119,7 @@ def main():
 
 
     from pprint import pprint
-    scores = EntropyCutterCalculator(s,t).calculateCutsGains()
+    scores = GiniCutterCalculator(s,t).calculateCutsGains()
     pprint(scores)
 
 
