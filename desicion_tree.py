@@ -1,6 +1,6 @@
 import pandas as pd
 from cut_calculators import GiniCutterCalculator
-from metrics import Metrics
+from metrics import Metrics, MetricsAggregator
 from optimal_cut_selector import BestCutSelector, TopN, RandomProportional
 from functools import lru_cache
 from collections import namedtuple, deque, defaultdict
@@ -166,32 +166,46 @@ def main():
     from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
     #sampleDataGenerator = CircleUniformVarianceDataGenerator( noise=0.05 )
 
-    with Timer('Generating random data'):
-        sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
-        data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
+    max_depth = 4
+    repeats = 3
 
-    max_depth = 3
+    datas = []
+    with Timer('Generating random data'):
+        for _ in range(repeats):
+            sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
+            data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
+            datas.append(data)
+
+
     for cutSelector in [
         BestCutSelector(GiniCutterCalculator),
         RandomProportional(GiniCutterCalculator),
-        TopN(GiniCutterCalculator, 5),
+        TopN(GiniCutterCalculator, 3),
     ]:
 
-        with Timer('Fitting tree'):
-            tree = Tree(max_depth=max_depth, cut_selector=cutSelector)
-            tree.fit( *data.train.asTuples() )
+        print('==========={}============'.format(cutSelector.__class__.__name__))
 
-        with Timer('Predicting'):
-            preds, metrics = tree.predict( *data.test.asTuples() )
-            print( metrics )
+        combinedMetrics = MetricsAggregator()
+        for data in datas:
 
-        with Timer('Visualizing'):
-            HeatmapVisualizer.plot(
-                tree=tree,
-                df=data.train.asSingleDf(),
-                xLimits=(-0.5,0.5),
-                yLimits=(-0.5,0.5),
-            )
+            with Timer('Fitting tree'):
+                tree = Tree(max_depth=max_depth, cut_selector=cutSelector)
+                tree.fit( *data.train.asTuples() )
+
+            with Timer('Predicting'):
+                preds, metrics = tree.predict( *data.test.asTuples() )
+                print( metrics )
+                combinedMetrics += metrics
+
+            with Timer('Visualizing'):
+                HeatmapVisualizer.plot(
+                    tree=tree,
+                    df=data.train.asSingleDf(),
+                    xLimits=(-0.5,0.5),
+                    yLimits=(-0.5,0.5),
+                )
+
+        print('=== AVG:=== {}'.format(combinedMetrics))
 
 
     print('done!')

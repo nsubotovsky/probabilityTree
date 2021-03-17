@@ -1,6 +1,29 @@
 from functools import lru_cache
 
 
+class MetricsAggregator:
+
+    def __init__(self):
+        self.metrics =  []
+
+    def __iadd__(self, other):
+        self.metrics.append(other)
+        return self
+
+    def _avg(self, func):
+        return sum( func(i) for i in self.metrics ) / len(self.metrics)
+
+    def aggregate(self):
+        fullPresicion = self._avg(lambda x: x.precision)
+        fullRecall = self._avg(lambda x: x.recall)
+        fullF1 = self._avg(lambda x: x.f1)
+        return (fullPresicion, fullRecall, fullF1)
+
+    def __str__(self):
+        return 'Presicion={}, Recall={}, F1={}'.format(*self.aggregate())
+
+
+
 class Metrics:
 
     def __init__(self, predictions, actualValues):
@@ -32,8 +55,7 @@ class Metrics:
     @property
     @lru_cache()
     def precision(self):
-        return self.truePositives / self.predictedPositives
-
+        return self.truePositives / self.predictedPositives if self.predictedPositives > 0 else 1
 
     @property
     @lru_cache()
