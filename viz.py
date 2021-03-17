@@ -58,9 +58,9 @@ class HeatmapVisualizer:
 
 
     @classmethod
-    def _addHeatmapToFigure(cls, ax, tree):
+    def _addHeatmapToFigure(cls, ax, tree, xLimits=None, yLimits=None):
 
-        squaresToPlot = cls._SquaresAndTestPoints(tree)
+        squaresToPlot = cls._SquaresAndTestPoints(tree, xLimits=xLimits, yLimits=yLimits)
         for sd in squaresToPlot:
 
             ax.add_patch(Rectangle(
@@ -76,16 +76,22 @@ class HeatmapVisualizer:
         ax.axis('equal')
 
     @classmethod
-    def plot(cls, tree=None, df=None):
+    def plot(cls, tree=None, df=None, xLimits=None, yLimits=None):
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
 
         if tree is not None:
-            cls._addHeatmapToFigure(ax, tree)
+            cls._addHeatmapToFigure(ax, tree, xLimits=xLimits, yLimits=yLimits)
 
         if df is not None:
             cls._addScatterToFigure(ax, df)
+
+        if xLimits is not None:
+            ax.set_xlim(*xLimits)
+
+        if yLimits is not None:
+            ax.set_ylim(*yLimits)
 
 
         plt.show()

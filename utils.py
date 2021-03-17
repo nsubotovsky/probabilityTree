@@ -54,24 +54,24 @@ def main():
         print('hey!')
 
 
-def main():
-
-    weights = [['a',1.5],
-               ['b',0.5],
-               ['c',1.0]]
-
-    from collections import defaultdict
-    from pprint import pprint
-
-    dd = defaultdict(lambda : 0)
-
-    rwp = randomWeightedPicker(weights)
-
-    for i in range(100000):
-        dd[rwp.rand()] += 1
-
-    pprint(dd['a']/dd['b'])
-    pprint(dd['a'] / dd['c'])
+# def main():
+#
+#     weights = [['a',1.5],
+#                ['b',0.5],
+#                ['c',1.0]]
+#
+#     from collections import defaultdict
+#     from pprint import pprint
+#
+#     dd = defaultdict(lambda : 0)
+#
+#     rwp = randomWeightedPicker(weights)
+#
+#     for i in range(100000):
+#         dd[rwp.rand()] += 1
+#
+#     pprint(dd['a']/dd['b'])
+#     pprint(dd['a'] / dd['c'])
 
 
 

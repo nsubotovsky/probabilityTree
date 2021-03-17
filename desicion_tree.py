@@ -48,6 +48,12 @@ class Tree:
         self._X = None
         self._Y = None
         self._fullIndexTemplate = None
+        self._logData()
+
+    def _logData(self):
+        print(' Tree data:')
+        print('   cut selector: {}'.format(self.cutSelector.__class__.__name__))
+        print('   max_depth: {}'.format(self.max_depth))
 
     def _getFullIndex(self, Y):
         'Gets an index of all TRUES, for initializing purposes'
@@ -156,32 +162,36 @@ class Tree:
 
 
 def main():
-
-    from synthetic_samples import CircleUniformVarianceDataGenerator
-    sampleDataGenerator = CircleUniformVarianceDataGenerator( noise=0.05 )
+    from data_holder import DataHolder, DataClass
+    from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
+    #sampleDataGenerator = CircleUniformVarianceDataGenerator( noise=0.05 )
 
     with Timer('Generating random data'):
-        df = sampleDataGenerator.generate(2000)
-        #print(df.head())
+        sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
+        data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
 
-    #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
+    max_depth = 3
+    for cutSelector in [
+        BestCutSelector(GiniCutterCalculator),
+        RandomProportional(GiniCutterCalculator),
+        TopN(GiniCutterCalculator, 5),
+    ]:
 
-    with Timer('Fitting tree'):
-        #tree = Tree( max_depth=10, cut_selector=TopN(GiniCutterCalculator, 5) )
-        #tree = Tree(max_depth=10, cut_selector=BestCutSelector(GiniCutterCalculator))
-        tree = Tree(max_depth=10, cut_selector=RandomProportional(GiniCutterCalculator))
-        tree.fit( df.drop('class', axis=1), df['class'] )
+        with Timer('Fitting tree'):
+            tree = Tree(max_depth=max_depth, cut_selector=cutSelector)
+            tree.fit( *data.train.asTuples() )
 
-    with Timer('Predicting'):
-        predictDf = sampleDataGenerator.generate(3000)
-        preds, metrics = tree.predict( predictDf.drop('class', axis=1), predictDf['class'] )
-        print( metrics )
+        with Timer('Predicting'):
+            preds, metrics = tree.predict( *data.test.asTuples() )
+            print( metrics )
 
-    # with Timer('Visualizing'):
-    #     HeatmapVisualizer.plot(
-    #         tree=tree,
-    #         #df=df
-    #     )
+        with Timer('Visualizing'):
+            HeatmapVisualizer.plot(
+                tree=tree,
+                df=data.train.asSingleDf(),
+                xLimits=(-0.5,0.5),
+                yLimits=(-0.5,0.5),
+            )
 
 
     print('done!')

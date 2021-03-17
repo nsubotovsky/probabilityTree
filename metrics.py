@@ -44,7 +44,7 @@ class Metrics:
     @property
     @lru_cache()
     def f1(self):
-        return (self.precision * self.recall) /(self.precision + self.recall)
+        return 2*(self.precision * self.recall) /(self.precision + self.recall)
 
     def __str__(self):
         return 'TP={}, TN={}, Presicion={}, Recall={}, F1={}'.format( self.truePositives, self.trueNegatives, self.precision, self.recall, self.f1 )
