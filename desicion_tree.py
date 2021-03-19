@@ -76,7 +76,7 @@ class Tree:
             return predictions
 
         else:
-            return predictions, Metrics( [ i.value for i in predictions ], list(Y) )
+            return predictions, Metrics( predictions, list(Y) )
 
 
     def predictSingle(self, row:pd.Series):
@@ -164,23 +164,24 @@ class Tree:
 def main():
     from data_holder import DataHolder, DataClass
     from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
-    #sampleDataGenerator = CircleUniformVarianceDataGenerator( noise=0.05 )
+
 
     max_depth = 4
-    repeats = 3
+    repeats = 5
 
     datas = []
     with Timer('Generating random data'):
         for _ in range(repeats):
             sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
+            #sampleDataGenerator = CircleUniformVarianceDataGenerator(noise=0.3)
             data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
             datas.append(data)
 
 
     for cutSelector in [
         BestCutSelector(GiniCutterCalculator),
-        RandomProportional(GiniCutterCalculator),
-        TopN(GiniCutterCalculator, 3),
+        # RandomProportional(GiniCutterCalculator),
+        # TopN(GiniCutterCalculator, 3),
     ]:
 
         print('==========={}============'.format(cutSelector.__class__.__name__))

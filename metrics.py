@@ -17,17 +17,19 @@ class MetricsAggregator:
         fullPresicion = self._avg(lambda x: x.precision)
         fullRecall = self._avg(lambda x: x.recall)
         fullF1 = self._avg(lambda x: x.f1)
-        return (fullPresicion, fullRecall, fullF1)
+        fullBrier = self._avg(lambda x: x.brierScore)
+        return (fullPresicion, fullRecall, fullF1, fullBrier)
 
     def __str__(self):
-        return 'Presicion={}, Recall={}, F1={}'.format(*self.aggregate())
+        return 'Presicion={}, Recall={}, F1={}, Brier={}'.format(*self.aggregate())
 
 
 
 class Metrics:
 
     def __init__(self, predictions, actualValues):
-        self.predictions = predictions
+        self.predictions = [i.value for i in predictions ]
+        self.probs = [i.trueProb for i in predictions ]
         self.actualValues = actualValues
         self.total = len(predictions)
 
@@ -35,6 +37,12 @@ class Metrics:
     @lru_cache()
     def truePositives(self):
         return sum( 1 for pred, actual in zip(self.predictions, self.actualValues) if pred==actual and pred == True )
+
+    @property
+    @lru_cache()
+    def brierScore(self):
+        return sum( (actualValue - probability)**2 for actualValue, probability in zip( self.actualValues, self.probs ) ) / self.total
+
 
     @property
     @lru_cache()
@@ -55,7 +63,7 @@ class Metrics:
     @property
     @lru_cache()
     def precision(self):
-        return self.truePositives / self.predictedPositives if self.predictedPositives > 0 else 1
+        return self.truePositives / self.predictedPositives
 
     @property
     @lru_cache()
@@ -69,7 +77,7 @@ class Metrics:
         return 2*(self.precision * self.recall) /(self.precision + self.recall)
 
     def __str__(self):
-        return 'TP={}, TN={}, Presicion={}, Recall={}, F1={}'.format( self.truePositives, self.trueNegatives, self.precision, self.recall, self.f1 )
+        return 'TP={}, TN={}, Presicion={}, Recall={}, F1={}, Brier={}'.format( self.truePositives, self.trueNegatives, self.precision, self.recall, self.f1, self.brierScore )
 
 
 
