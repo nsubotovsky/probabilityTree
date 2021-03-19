@@ -50,6 +50,8 @@ class Tree:
         self._fullIndexTemplate = None
         self._logData()
 
+        self.usedVariables = set()
+
     def _logData(self):
         print(' Tree data:')
         print('   cut selector: {}'.format(self.cutSelector.__class__.__name__))
@@ -135,6 +137,7 @@ class Tree:
         currY = self._Y[currentNode.nodeIndexes]
 
         cut = self.cutSelector.findCut(currX, currY)
+        self.usedVariables.add(cut.columnName)
         lessThanIndexes = cut.lessThanIndexes(currX)
         greaterThanOrEqualIndexes = ~lessThanIndexes
 
@@ -166,14 +169,14 @@ def main():
     from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
 
 
-    max_depth = 4
-    repeats = 5
+    max_depth = 8
+    repeats = 1
 
     datas = []
     with Timer('Generating random data'):
         for _ in range(repeats):
-            sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
-            #sampleDataGenerator = CircleUniformVarianceDataGenerator(noise=0.3)
+            #sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
+            sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=0.4, dimensions=3, noise=0.05)
             data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
             datas.append(data)
 

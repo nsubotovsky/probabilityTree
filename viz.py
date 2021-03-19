@@ -10,7 +10,7 @@ from matplotlib.patches import Rectangle
 class HeatmapVisualizer:
 
     @classmethod
-    def _SquaresAndTestPoints( cls, tree, xColName='x', yColName='y', xLimits=None, yLimits=None ):
+    def _SquaresAndTestPoints( cls, tree, xColName='x_1', yColName='x_2', xLimits=None, yLimits=None ):
 
         allCuts = tree.calculateAllCuts()
 
@@ -48,6 +48,10 @@ class HeatmapVisualizer:
                 allSquaresData.append(sd)
 
         testPoints = pd.DataFrame([ { xColName:sd['midPoint'][0] , yColName:sd['midPoint'][1] } for sd in allSquaresData ])
+
+        # complete missing vars (for visualization) with 0s
+        for extraVar in tree.usedVariables - {xColName, yColName}:
+            testPoints[extraVar] = pd.Series(len(testPoints) * [0])
 
         trueProbs = [ prediction.trueProb for prediction in tree.predict( testPoints ) ]
 
@@ -100,7 +104,7 @@ class HeatmapVisualizer:
     @classmethod
     def _addScatterToFigure(cls, ax, df):
         ax.scatter(
-            df['x'],
-            df['y'],
+            df['x_1'],
+            df['x_2'],
             c=df['class'].apply( lambda x : 'red' if x else 'blue' ),
             alpha=0.3 )

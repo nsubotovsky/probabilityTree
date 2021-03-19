@@ -13,29 +13,34 @@ class BaseDataGenerator(ABC):
 
 class CircleUniformVarianceDataGenerator(BaseDataGenerator):
 
-    def __init__(self, ratio:float=0.5, noise:float=0.1):
-        self._ratio = ratio
-        self._noise=  noise
+    def __init__(self, radiusThreshold:float=0.3, dimensions=2, noise:float=0.1, noiseDimensionModulator:tuple=(1.0, 1.0)):
+        self._radiusThreshold = radiusThreshold
+        self._dimensions = dimensions
+        self._noises_per_dimension = self._calculateDimensionNoisesAmplitude( noise, noiseDimensionModulator )
+
+    def _calculateDimensionNoisesAmplitude(self, noise, noiseDimensionModulator):
+        return tuple(noise * random.uniform( *noiseDimensionModulator ) for _ in range( self._dimensions ) )
 
     def _generatePointsInSquare(self, sampleSize:int) -> (float, float):
-        randomPointsInSquare = np.random.random((sampleSize, 2)) - 0.5
-        return [(x, y) for x, y in randomPointsInSquare]
+        return np.random.random((sampleSize, self._dimensions)) - 0.5
 
-    def _sampleNoise(self) -> float:
-        return random.gauss(0, self._noise)
+    def _sampleNoise(self) -> tuple:
+        return tuple(random.gauss(0, noiseInDimension) for noiseInDimension in self._noises_per_dimension)
 
 
     def generate(self, samplesize:int=100) -> pd.DataFrame:
-        # remember boundary circle's radius = sqrt( ratio / pi )
 
-        radius_squared = self._ratio / math.pi
-        def _calculateTargetClass( x, y ):
-            return x*x + y*y + self._sampleNoise() <= radius_squared
+        def _calculateTargetClass( row ):
+            noisyRow = row + self._sampleNoise()
+            return np.linalg.norm(noisyRow) <= self._radiusThreshold
 
         samples = self._generatePointsInSquare(samplesize)
-        samplesWithClass = [ (x, y, _calculateTargetClass( x,y )) for x,y in samples ]
+        sampleClass = [ _calculateTargetClass( row ) for row in samples ]
 
-        return pd.DataFrame(samplesWithClass, columns=['x', 'y', 'class'])
+        df = pd.DataFrame(samples, columns=['x_{}'.format(i+1) for i in range(self._dimensions)])
+        df['class'] = sampleClass
+
+        return df
 
 
 
@@ -78,16 +83,20 @@ class CheckersDataGenerator(BaseDataGenerator):
         samples = self._generatePointsInSquare(samplesize)
         samplesWithClass = [ (x, y, _calculateTargetClass( x,y )) for x,y in samples ]
 
-        return pd.DataFrame(samplesWithClass, columns=['x', 'y', 'class'])
+        return pd.DataFrame(samplesWithClass, columns=['x_1', 'x_2', 'class'])
 
 
 
 def main():
     import matplotlib.pyplot as plt
-    #df = CircleUniformVarianceDataGenerator( ratio=0.2, noise=0.03 ).generate(1000)
-    df = CheckersDataGenerator(squares=4, noise=.05).generate(1000)
+    df = CircleUniformVarianceDataGenerator(radiusThreshold=0.3, noise=0.02, dimensions=3, noiseDimensionModulator=[1,5]).generate(1000)
+    #df = CheckersDataGenerator(squares=4, noise=.05).generate(1000)
 
-    plt.scatter( df['x'],  df['y'], c=df['class'] )
+    plt.scatter(df['x_1'],  df['x_2'], c=df['class'] )
+    plt.show()
+    plt.scatter(df['x_2'], df['x_3'], c=df['class'])
+    plt.show()
+    plt.scatter(df['x_1'], df['x_3'], c=df['class'])
     plt.show()
 
 
