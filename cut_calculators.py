@@ -44,16 +44,18 @@ class BaseCutterCalculator(ABC):
             if self._isTrivialCut(left_series, right_series):
                 continue
 
-            # left_score = self._getSeriesScore(left_series)
-            # right_score = self._getSeriesScore(right_series)
+            left_score = self._getSeriesScore(left_series)
+            right_score = self._getSeriesScore(right_series)
+
+            cut_score = ( left_score * left_series.count() + right_score * right_series.count() ) / self._seriesCount
+
+
+            # optimized version here (works for GINI only so far)
             #
-            # cut_score = ( left_score * left_series.count() + right_score * right_series.count() ) / self._seriesCount
-
-
-            left_score = self._getSeriesScoreMultipliedByCount(left_series)
-            right_score = self._getSeriesScoreMultipliedByCount(right_series)
-
-            cut_score = ( left_score + right_score  ) / self._seriesCount
+            # left_score = self._getSeriesScoreMultipliedByCount(left_series)
+            # right_score = self._getSeriesScoreMultipliedByCount(right_series)
+            #
+            # cut_score = ( left_score + right_score  ) / self._seriesCount
 
 
 
@@ -110,6 +112,66 @@ class EntropyCutterCalculator(BaseCutterCalculator):
 
         return ratio * math.log2(ratio)
 
+
+
+class ChiSquaredCalculator(BaseCutterCalculator):
+
+    def _chiSquared(self, actual, expected):
+        return math.sqrt((actual - expected)**2/expected)
+
+    def _getTotalTrueFalseCount(self, series):
+        total = series.count()
+        true = series.sum()
+        false = total-true
+        return total, true, false
+
+    def calculateCutsGains(self) -> dict:
+        results = {}
+
+
+        parent_total, parent_true, parent_false = self._getTotalTrueFalseCount( self._target )
+
+        # for cutLimit in self._series.unique():
+        for cutLimit in self._calculateCutPoints():
+
+            indexes = self._series < cutLimit
+
+            left_series = self._target[indexes]
+            right_series = self._target[~indexes]
+
+            if self._isTrivialCut(left_series, right_series):
+                continue
+
+            left_total, left_true, left_false = self._getTotalTrueFalseCount(left_series)
+            right_total, right_true, right_false = self._getTotalTrueFalseCount(right_series)
+
+
+            left_true_expected = parent_true * left_total / parent_total
+            left_false_expected = parent_false * left_total / parent_total
+
+            right_true_expected = parent_true * right_total / parent_total
+            right_false_expected = parent_false * right_total / parent_total
+
+            cut_score = 0
+            cut_score += self._chiSquared(left_true, left_true_expected)
+            cut_score += self._chiSquared(left_false, left_false_expected)
+            cut_score += self._chiSquared(right_true, right_true_expected)
+            cut_score += self._chiSquared(right_false, right_false_expected)
+
+
+            results[cutLimit] = cut_score
+
+        return results
+
+    def _getSeriesScore(self, targetSeries:pd.Series) -> float:
+        trueRatio, falseRatio = self._getTrueAndFalseRatios(targetSeries)
+        return 1 - trueRatio ** 2 - falseRatio ** 2
+
+    def _getSeriesScoreMultipliedByCount(self, targetSeries:pd.Series) -> float:
+        totalCount = targetSeries.count()
+        trueCount = targetSeries.sum()
+        falseCount = totalCount - trueCount
+        return totalCount - (trueCount*trueCount+falseCount*falseCount)/totalCount
 
 
 def main():
