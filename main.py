@@ -15,8 +15,8 @@ if __name__ == '__main__':
 
     smp = CircleUniformVarianceDataGenerator(noise=0.1).generate(1000)
 
-    colToTest = smp['x']
-    columnCuts = pd.qcut(smp['x'], 3)
+    colToTest = smp['x_1']
+    columnCuts = pd.qcut(smp['x_1'], 3)
 
 
     #for colName in smp.columns:

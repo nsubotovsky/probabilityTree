@@ -1,5 +1,5 @@
 import pandas as pd
-from cut_calculators import GiniCutterCalculator
+from cut_calculators import GiniCutterCalculator, ChiSquaredCalculator
 from metrics import Metrics, MetricsAggregator
 from optimal_cut_selector import BestCutSelector, TopN, RandomProportional
 from functools import lru_cache
@@ -87,6 +87,8 @@ class Tree:
 
         while currNode.cut is not None:
             cut = currNode.cut
+
+
             if row[cut.columnName] < cut.cutThreshold:
                 currNode = currNode.lessThanNode
 
@@ -94,6 +96,7 @@ class Tree:
                 currNode = currNode.greaterThanOrEqualNode
 
         return currNode.nodeLevelPrediction()
+
 
 
     def _completeIndex(self, currentIndexes):
@@ -164,30 +167,47 @@ class Tree:
         return { k:sorted(v) for k,v in allCutsPerColumn.items() }
 
 
+
+def discretizeDf(df, classColumn='class', q=20):
+    for column in df.columns:
+
+        if column == classColumn:
+            continue
+
+        df[column] = pd.qcut(df[column], q)
+
+
+    return df
+
 def main():
     from data_holder import DataHolder, DataClass
     from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
 
 
-    max_depth = 8
-    repeats = 1
+    max_depth = 6
+    repeats = 10
 
     datas = []
     with Timer('Generating random data'):
         for _ in range(repeats):
             #sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
-            sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=0.4, dimensions=3, noise=0.05)
-            data = DataHolder( sampleDataGenerator.generate(1000), classColumn='class' )
+            sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=0.3, dimensions=2, noise=0.1)
+            data = DataHolder(sampleDataGenerator.generate(2000))
+
+            #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=1.6, dimensions=30, noise=0.05)
+            #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=1.8, dimensions=30, noise=0.05,noiseDimensionModulator=(1, 5))
+            #data = DataHolder( discretizeDf(sampleDataGenerator.generate(1000)), classColumn='class' )
             datas.append(data)
 
 
     for cutSelector in [
+        BestCutSelector(ChiSquaredCalculator),
         BestCutSelector(GiniCutterCalculator),
         # RandomProportional(GiniCutterCalculator),
         # TopN(GiniCutterCalculator, 3),
     ]:
 
-        print('==========={}============'.format(cutSelector.__class__.__name__))
+        print('==========={}[{}]============'.format(cutSelector.__class__.__name__, cutSelector._cutScoreCalculator.__name__))
 
         combinedMetrics = MetricsAggregator()
         for data in datas:
@@ -201,13 +221,13 @@ def main():
                 print( metrics )
                 combinedMetrics += metrics
 
-            with Timer('Visualizing'):
-                HeatmapVisualizer.plot(
-                    tree=tree,
-                    df=data.train.asSingleDf(),
-                    xLimits=(-0.5,0.5),
-                    yLimits=(-0.5,0.5),
-                )
+            # with Timer('Visualizing'):
+            #     HeatmapVisualizer.plot(
+            #         tree=tree,
+            #         df=data.train.asSingleDf(),
+            #         xLimits=(-0.5,0.5),
+            #         yLimits=(-0.5,0.5),
+            #     )
 
         print('=== AVG:=== {}'.format(combinedMetrics))
 
