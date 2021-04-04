@@ -116,8 +116,11 @@ class EntropyCutterCalculator(BaseCutterCalculator):
 
 class ChiSquaredCalculator(BaseCutterCalculator):
 
-    def _chiSquared(self, actual, expected):
-        return math.sqrt((actual - expected)**2/expected)
+    def _chiSquared(self, actual, expected, apply_yates_correction=False):
+        if apply_yates_correction:
+            return ((math.fabs(actual - expected)-0.5)**2/expected)
+
+        return ((actual - expected)**2/expected)
 
     def _getTotalTrueFalseCount(self, series):
         total = series.count()
@@ -133,6 +136,8 @@ class ChiSquaredCalculator(BaseCutterCalculator):
 
         # for cutLimit in self._series.unique():
         for cutLimit in self._calculateCutPoints():
+
+            apply_yates_correction = self._series.count() <= 10
 
             indexes = self._series < cutLimit
 
@@ -153,10 +158,10 @@ class ChiSquaredCalculator(BaseCutterCalculator):
             right_false_expected = parent_false * right_total / parent_total
 
             cut_score = 0
-            cut_score += self._chiSquared(left_true, left_true_expected)
-            cut_score += self._chiSquared(left_false, left_false_expected)
-            cut_score += self._chiSquared(right_true, right_true_expected)
-            cut_score += self._chiSquared(right_false, right_false_expected)
+            cut_score += self._chiSquared(left_true, left_true_expected, apply_yates_correction)
+            cut_score += self._chiSquared(left_false, left_false_expected, apply_yates_correction)
+            cut_score += self._chiSquared(right_true, right_true_expected, apply_yates_correction)
+            cut_score += self._chiSquared(right_false, right_false_expected, apply_yates_correction)
 
 
             results[cutLimit] = cut_score
