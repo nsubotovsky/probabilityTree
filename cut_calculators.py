@@ -118,9 +118,15 @@ class ChiSquaredCalculator(BaseCutterCalculator):
 
     def _chiSquared(self, actual, expected, apply_yates_correction=False):
         if apply_yates_correction:
-            return ((math.fabs(actual - expected)-0.5)**2/expected)
+            return math.sqrt((math.fabs(actual - expected)-0.5)**2/expected)
 
-        return ((actual - expected)**2/expected)
+        return math.sqrt((actual - expected)**2/expected)
+
+    def _getSeriesScore(self, *args, **kwargs):
+        raise NotImplementedError('This is bad programming')
+
+    def _getSeriesScoreMultipliedByCount(selfs, *args, **kwargs):
+        raise NotImplementedError('This is still bad programminh')
 
     def _getTotalTrueFalseCount(self, series):
         total = series.count()
@@ -150,12 +156,13 @@ class ChiSquaredCalculator(BaseCutterCalculator):
             left_total, left_true, left_false = self._getTotalTrueFalseCount(left_series)
             right_total, right_true, right_false = self._getTotalTrueFalseCount(right_series)
 
+            left_ratio = left_total / parent_total
+            left_true_expected = parent_true * left_ratio
+            left_false_expected = parent_false * left_ratio
 
-            left_true_expected = parent_true * left_total / parent_total
-            left_false_expected = parent_false * left_total / parent_total
-
-            right_true_expected = parent_true * right_total / parent_total
-            right_false_expected = parent_false * right_total / parent_total
+            right_ratio = right_total / parent_total
+            right_true_expected = parent_true * right_ratio
+            right_false_expected = parent_false * right_ratio
 
             cut_score = 0
             cut_score += self._chiSquared(left_true, left_true_expected, apply_yates_correction)
@@ -167,16 +174,6 @@ class ChiSquaredCalculator(BaseCutterCalculator):
             results[cutLimit] = cut_score
 
         return results
-
-    def _getSeriesScore(self, targetSeries:pd.Series) -> float:
-        trueRatio, falseRatio = self._getTrueAndFalseRatios(targetSeries)
-        return 1 - trueRatio ** 2 - falseRatio ** 2
-
-    def _getSeriesScoreMultipliedByCount(self, targetSeries:pd.Series) -> float:
-        totalCount = targetSeries.count()
-        trueCount = targetSeries.sum()
-        falseCount = totalCount - trueCount
-        return totalCount - (trueCount*trueCount+falseCount*falseCount)/totalCount
 
 
 def main():
