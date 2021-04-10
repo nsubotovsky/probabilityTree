@@ -11,20 +11,17 @@ Prediction = namedtuple('Prediction', 'value trueProb')
 
 class _TreeNode:
 
-    def __init__(self, level:int, nodeIndexes:pd.Series, trueVals:int, cut=None):
+    def __init__(self, level:int, targets:pd.Series, cut=None):
         self.level=level
-        self.nodeIndexes = nodeIndexes
         self.cut = cut
-        self.trueVals = trueVals
-        self.falseVals = self.sampleCount - trueVals
+
+        self.sampleCount = targets.count()
+        self.trueVals = targets.sum()
+        self.falseVals = self.sampleCount - self.trueVals
 
         self.lessThanNode=None
         self.greaterThanOrEqualNode=None
 
-    @property
-    @lru_cache()
-    def sampleCount(self) -> int:
-        return self.nodeIndexes.sum()
 
     def __repr__(self):
         return 'TreeNode( NodeCount: {}, True={}, False={} )'.format(self.sampleCount, self.trueVals, self.falseVals)
@@ -63,12 +60,8 @@ class Tree:
 
     def fit(self, X : pd.DataFrame, Y : pd.Series):
 
-        self._X = X
-        self._Y = Y
-        self._fullIndexTemplate = pd.Series( [False]* len(self._Y) )
-
-        self.rootNode = _TreeNode(level=0, nodeIndexes=self._getFullIndex(Y), trueVals=Y.sum() )
-        self._recursive(self.rootNode)
+        self.rootNode = _TreeNode(level=0, targets=Y )
+        self._recursive(self.rootNode, X, Y)
 
 
     def predict(self, X:pd.DataFrame, Y:pd.Series=None):
@@ -98,29 +91,20 @@ class Tree:
         return currNode.nodeLevelPrediction()
 
 
+    def _recursive(self, currentNode:_TreeNode, X:pd.DataFrame, Y:pd.Series):
 
-    def _completeIndex(self, currentIndexes):
-        index = self._fullIndexTemplate.copy()
-        index[ currentIndexes.index ] = currentIndexes
-        return index
-
-    def _recursive(self, currentNode:_TreeNode):
-
-        result = self._doTheCut( currentNode )
+        result = self._doTheCut( currentNode, X, Y)
         if result is not None:
-            cut, lessThanIndexes, greaterThanOrEqualIndexes = result
-
-            completeLessThanIndexes = self._completeIndex(lessThanIndexes)
-            completeGreaterThanOrEqualIndexes = self._completeIndex(greaterThanOrEqualIndexes)
+            cut, (lessThanX, lessThanY), (greaterThanOrEqualX, greaterThanOrEqualY) = result
 
             currentNode.cut = cut
-            currentNode.lessThanNode = _TreeNode( currentNode.level+1, completeLessThanIndexes, self._Y[completeLessThanIndexes].sum() )
-            currentNode.greaterThanOrEqualNode = _TreeNode(currentNode.level + 1, completeGreaterThanOrEqualIndexes, self._Y[completeGreaterThanOrEqualIndexes].sum())
+            currentNode.lessThanNode = _TreeNode( currentNode.level+1, lessThanY )
+            currentNode.greaterThanOrEqualNode = _TreeNode(currentNode.level + 1, greaterThanOrEqualY)
 
-            self._recursive( currentNode.lessThanNode )
-            self._recursive( currentNode.greaterThanOrEqualNode )
+            self._recursive( currentNode.lessThanNode, lessThanX, lessThanY )
+            self._recursive( currentNode.greaterThanOrEqualNode, greaterThanOrEqualX, greaterThanOrEqualY )
 
-    def _doTheCut(self, currentNode:_TreeNode):
+    def _doTheCut(self, currentNode:_TreeNode, X:pd.DataFrame, Y:pd.Series):
 
         # stop condition checks:
 
@@ -136,19 +120,19 @@ class Tree:
         if currentNode.falseVals == 0 or currentNode.trueVals == 0:
             return
 
-        currX = self._X[currentNode.nodeIndexes]
-        currY = self._Y[currentNode.nodeIndexes]
-
-        cut = self.cutSelector.findCut(currX, currY)
+        cut = self.cutSelector.findCut(X, Y)
         self.usedVariables.add(cut.columnName)
-        lessThanIndexes = cut.lessThanIndexes(currX)
-        greaterThanOrEqualIndexes = ~lessThanIndexes
+        lessThanIndexes = cut.lessThanIndexes(X)
+
+        lessThanX, lessThanY = X[lessThanIndexes], Y[lessThanIndexes]
+        greaterThanOrEqualX, greaterThanOrEqualY = X[~lessThanIndexes], Y[~lessThanIndexes]
+
 
         # check that split generated leaves with adequate number of leaves
-        if lessThanIndexes.sum() < self.min_samples_leaf or greaterThanOrEqualIndexes.sum() < self.min_samples_leaf:
+        if lessThanIndexes.sum() < self.min_samples_leaf or greaterThanOrEqualY.count() < self.min_samples_leaf:
             return
 
-        return cut, lessThanIndexes, greaterThanOrEqualIndexes
+        return cut, (lessThanX, lessThanY), (greaterThanOrEqualX, greaterThanOrEqualY)
 
     def calculateAllCuts(self):
 
@@ -168,7 +152,7 @@ class Tree:
 
 
 
-def discretizeDf(df, classColumn='class', q=20):
+def discretizeDf(df, classColumn='class', q=31):
     for column in df.columns:
 
         if column == classColumn:
@@ -182,6 +166,7 @@ def discretizeDf(df, classColumn='class', q=20):
 def main():
     from data_holder import DataHolder, DataClass
     from synthetic_samples import CircleUniformVarianceDataGenerator, CheckersDataGenerator
+    from synthetic_data.sphereSyntheticGenerator import SphereSyntheticGenerator
 
 
     max_depth = 6
@@ -191,20 +176,26 @@ def main():
     with Timer('Generating random data'):
         for _ in range(repeats):
             #sampleDataGenerator = CheckersDataGenerator(squares=3, noise=0.6)
-            sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=0.3, dimensions=2, noise=0.1)
-            data = DataHolder(sampleDataGenerator.generate(2000))
+            #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=0.3, dimensions=2, noise=0.1)
+            #data = DataHolder(sampleDataGenerator.generate(50))
 
             #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=1.6, dimensions=30, noise=0.05)
-            #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=1.8, dimensions=30, noise=0.05,noiseDimensionModulator=(1, 5))
-            #data = DataHolder( discretizeDf(sampleDataGenerator.generate(1000)), classColumn='class' )
+            #sampleDataGenerator = CircleUniformVarianceDataGenerator(radiusThreshold=2.4, dimensions=30, noise=0.1,noiseDimensionModulator=(1, 5))
+            sampleDataGenerator = SphereSyntheticGenerator(ratio=1.2, dimensions=50, noise=0.005,noiseDimensionModulator=(1, 10))
+
+            sampleData = sampleDataGenerator.generate(10000)
+            print('sampledata ratio: {}'.format(sampleData['class'].sum()/sampleData['class'].count()))
+            sampleData = discretizeDf( sampleData, classColumn='class')
+            data = DataHolder( sampleData, classColumn='class' )
+            #data = DataHolder( discretizeDf(sampleData), classColumn='class' )
             datas.append(data)
 
 
     for cutSelector in [
-        BestCutSelector(ChiSquaredCalculator),
-        BestCutSelector(GiniCutterCalculator),
-        # RandomProportional(GiniCutterCalculator),
-        # TopN(GiniCutterCalculator, 3),
+        # BestCutSelector(ChiSquaredCalculator),
+        # BestCutSelector(GiniCutterCalculator),
+        RandomProportional(ChiSquaredCalculator),
+        TopN(ChiSquaredCalculator, 3),
     ]:
 
         print('==========={}[{}]============'.format(cutSelector.__class__.__name__, cutSelector._cutScoreCalculator.__name__))
