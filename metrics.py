@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+import numpy as np
 
 class MetricsAggregator:
 
@@ -68,7 +68,7 @@ class Metrics:
     @property
     @lru_cache()
     def recall(self):
-        return self.truePositives / (self.truePositives + ( self.predictedNegatives - self.trueNegatives ) )
+        return self._doOrDefault( lambda : self.truePositives / (self.truePositives + ( self.predictedNegatives - self.trueNegatives ) ) )
 
 
     @property
@@ -79,7 +79,12 @@ class Metrics:
     def __str__(self):
         return 'TP={}, TN={}, Presicion={}, Recall={}, F1={}, Brier={}'.format( self.truePositives, self.trueNegatives, self.precision, self.recall, self.f1, self.brierScore )
 
+    def _doOrDefault(self, func, default=np.nan):
+        try:
+            return func()
 
+        except Exception as e:
+            return default
 
 
 
